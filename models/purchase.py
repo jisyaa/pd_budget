@@ -106,14 +106,6 @@ class PurchaseOrder(models.Model):
             'res_id': memo.id,
         }
 
-    # def button_confirm(self):
-    #     for order in self:
-    #         if order.has_over_budget and not order.memo_over_budget_done:
-    #             raise ValidationError(
-    #                 "Purchase Order ini Over Budget. Buat & simpan Memo Over Budget terlebih dahulu."
-    #             )
-    #     return super(PurchaseOrder, self).button_confirm()
-
     def button_confirm(self):
         """Cek Memo Over Budget + Update qty_plan sesuai qty PO jika over."""
         for order in self:
@@ -148,4 +140,28 @@ class PurchaseOrder(models.Model):
                             bl.qty_plan = total_po_qty
         return res
 
+    def unlink(self):
+        """Kalau PO dihapus, kembalikan qty_plan ke nilai sebelumnya."""
+        # Cari semua budget item line yang terdampak
+        for order in self:
+            for line in order.order_line:
+                if line.budget_item_id and line.product_id:
+                    budget_lines = line.budget_item_id.line_ids.filtered(
+                        lambda l: l.product_id == line.product_id
+                    )
+                    for bl in budget_lines:
+                        # Hitung total qty purchase lainnya yang masih ada
+                        total_po_qty = self.env['purchase.order.line'].search([
+                            ('budget_item_id', '=', line.budget_item_id.id),
+                            ('product_id', '=', line.product_id.id),
+                            ('order_id.state', 'in', ['purchase', 'done']),
+                            ('order_id', 'not in', self.ids)  # kecuali PO ini
+                        ]).mapped('product_qty')
+                        total_po_qty = sum(total_po_qty)
 
+                        # Kembalikan qty_plan sesuai baseline atau total PO lain
+                        if total_po_qty > bl.initial_qty_plan:
+                            bl.qty_plan = total_po_qty
+                        else:
+                            bl.qty_plan = bl.initial_qty_plan
+        return super(PurchaseOrder, self).unlink()

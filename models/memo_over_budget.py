@@ -10,6 +10,12 @@ class MemoOverBudget(models.Model):
         'purchase.order', string='Reference', required=True, ondelete='cascade')
     date = fields.Date(string="Date", default=fields.Date.today)
     reason = fields.Text(string="Reason")
+    memo_over_budget_done = fields.Boolean(
+        string="Memo Over Budget Done",
+        related='purchase_order_id.memo_over_budget_done',
+        store=False,
+        readonly=True,
+    )
 
     line_ids = fields.One2many('memo.over.budget.line', 'memo_id', string='Detail Over Budget')
 

@@ -273,11 +273,19 @@ class BudgetItemLine(models.Model):
     name = fields.Char(string="Name")
     uom_id = fields.Many2one('uom.uom', string="Unit of Measure", store=True)
     qty_plan = fields.Float(string="Qty Plan")
+    initial_qty_plan = fields.Float(string="Initial Qty Plan")
     unit_price = fields.Float(string="Unit Price", store=True)
     qty_used = fields.Float(string="Qty Used", compute="_compute_qty_used", store=True)
     qty_remain = fields.Float(string="Qty Remain", compute="_compute_qty_remain", store=True)
     subtotal = fields.Float(string="Subtotal", compute="_compute_subtotal", store=True)
     remark = fields.Char(string="Remark")
+
+    @api.model
+    def create(self, vals):
+        # Saat create, isi initial_qty_plan = qty_plan
+        if 'qty_plan' in vals and 'initial_qty_plan' not in vals:
+            vals['initial_qty_plan'] = vals['qty_plan']
+        return super().create(vals)
 
     @api.depends('product_id', 'item_id.purchase_line_ids.order_id.state', 'item_id.purchase_line_ids.product_qty')
     def _compute_qty_used(self):
