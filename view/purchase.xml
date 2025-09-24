@@ -1,0 +1,32 @@
+<odoo>
+    <record id="purchase_order_line_inherit_budget" model="ir.ui.view">
+        <field name="name">purchase.order.line.inherit.budget</field>
+        <field name="model">purchase.order</field>
+        <field name="inherit_id" ref="purchase.purchase_order_form"/>
+        <field name="arch" type="xml">
+
+            <xpath expr="//div[@name='button_box']" position="after">
+                <button name="action_memo_over_budget"
+                        string="Memo Over Budget"
+                        type="object"
+                        class="oe_highlight float-end"
+                        invisible="not has_over_budget"/>
+            </xpath>
+
+            <xpath expr="//div[@name='reminder']" position="after">
+                <field name="memo_over_budget_id"/>
+            </xpath>
+
+            <!-- Tambah kolom di tree view order_line -->
+            <xpath expr="//field[@name='order_line']//list//field[@name='product_id']" position="after">
+                <field name="budget_item_id"/>
+            </xpath>
+
+            <!-- Tambah kolom di form popup order_line -->
+            <xpath expr="//field[@name='order_line']//form//field[@name='product_id']" position="after">
+                <field name="budget_item_id"/>
+            </xpath>
+
+        </field>
+    </record>
+</odoo>

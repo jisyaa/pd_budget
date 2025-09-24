@@ -1,0 +1,134 @@
+<odoo>
+    <!-- Budget list -->
+    <record id="view_budget_list" model="ir.ui.view">
+        <field name="name">budget.budget.list</field>
+        <field name="model">budget.budget</field>
+        <field name="arch" type="xml">
+            <list string="Budgets">
+                <field name="budget_number"/>
+                <field name="date"/>
+                <field name="budget_type"/>
+                <field name="start_periode"/>
+                <field name="end_periode"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Budget Form -->
+    <record id="view_budget_form" model="ir.ui.view">
+        <field name="name">budget.budget.form</field>
+        <field name="model">budget.budget</field>
+        <field name="arch" type="xml">
+            <form string="Budget">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="budget_number"/>
+                            <field name="date"/>
+                            <field name="budget_type"/>
+                            <field name="start_periode"/>
+                            <field name="end_periode"/>
+                            <field name="currency_id"/>
+                            <field name="notes"/>
+                        </group>
+                        <group>
+                            <field name="template_id"/>
+                        </group>
+                    </group>
+
+                    <notebook>
+                        <page string="Item List">
+                            <field name="item_ids" mode="list,form" context="{'default_budget_id': id}">
+                                <list string="Budget Items"  child_name="child_ids" parent_name="parent_id" decoration-info="is_parent">
+                                    <field name="code"/>
+                                    <field name="name"/>
+                                    <field name="budget_plan"/>
+                                    <field name="request"/>
+                                    <field name="remaining"/>
+                                    <field name="over_budget"/>
+                                    <field name="actual"/>
+                                </list>
+                                <form string="Budget Item Detail">
+                                    <sheet>
+                                        <group>
+                                            <group>
+                                                <field name="type"/>
+                                                <field name="name" string="Description"/>
+                                                <field name="budget_plan" readonly="True"/>
+                                            </group>
+                                            <group>
+                                                <field name="parent_id"/>
+                                                <field name="approved"/>
+                                                <field name="check_detail"/>
+                                            </group>
+                                        </group>
+                                        <notebook>
+                                            <page string="Details" invisible="parent_id == False">
+                                                    <field name="line_ids">
+                                                        <list string="Budget Item Line" editable="bottom">
+                                                            <field name="product_id"/>
+                                                            <field name="name"/>
+                                                            <field name="uom_id"/>
+                                                            <field name="qty_plan"/>
+                                                            <field name="unit_price"/>
+                                                            <field name="qty_used"/>
+                                                            <field name="qty_remain"/>
+                                                            <field name="subtotal"/>
+                                                            <field name="remark"/>
+                                                        </list>
+                                                    </field>
+                                                </page>
+                                                <page string="Request Detail" invisible="parent_id == False">
+                                                    <field name="request_purchase_ids" readonly="1">
+                                                        <list>
+                                                            <field name="date_planned" string="Date"/>
+                                                            <field name="order_id" string="Reference"/>
+                                                            <field name="name" string="Memo Over"/>
+                                                            <field name="product_id" string="Product"/>
+                                                            <field name="name" string="Description"/>
+                                                            <field name="price_subtotal" string="Amount"/>
+                                                        </list>
+                                                    </field>
+                                                </page>
+                                                <page string="Actual Detail" invisible="parent_id == False">
+                                                    <field name="actual_purchase_ids" readonly="1">
+                                                        <list>
+                                                            <field name="date_planned" string="Date"/>
+                                                            <field name="order_id" string="Reference"/>
+                                                            <field name="name" string="Memo Over"/>
+                                                            <field name="product_id" string="Product"/>
+                                                            <field name="name" string="Description"/>
+                                                            <field name="price_subtotal" string="Amount"/>
+                                                        </list>
+                                                    </field>
+                                                </page>
+                                                <page string="Budget Revision" invisible="parent_id == False">
+                                                    <field name="memo_over_budget_ids" readonly="1">
+                                                        <list>
+                                                            <field name="name"/>
+                                                            <field name="purchase_order_id" string="Purchase Order"/>
+                                                            <field name="date"/>
+                                                            <field name="reason"/>
+                                                        </list>
+                                                    </field>
+                                                </page>
+                                        </notebook>
+                                    </sheet>
+                                </form>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record model="ir.actions.act_window" id="budget_action">
+        <field name="name">Budgets</field>
+        <field name="res_model">budget.budget</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <menuitem id="menu_budget" name="Budgets" parent="menu_budget_plan" sequence="10" action="budget_action"/>
+
+</odoo>

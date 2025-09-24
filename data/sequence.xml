@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="seq_budget_number_custom" model="ir.sequence">
+        <field name="name">Budget Number Custom</field>
+        <field name="code">budget.budget</field>
+        <field name="prefix"/>
+        <field name="padding">4</field>
+        <field name="company_id" eval="False"/>
+    </record>
+
+    <record id="seq_memo_over_budget" model="ir.sequence">
+        <field name="name">Memo Over Budget</field>
+        <field name="code">memo.over.budget</field>
+        <field name="prefix">9933/MEM-OH/VII/</field>
+        <field name="padding">4</field>
+        <field name="number_next_actual">1</field>
+        <field name="number_increment">1</field>
+        <field name="implementation">standard</field>
+    </record>
+</odoo>

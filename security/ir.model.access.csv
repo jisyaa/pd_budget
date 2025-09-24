@@ -1,0 +1,8 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_budget,Access Budget,model_budget_budget,"",1,1,1,1
+access_budget_item,Access Budget Item,model_budget_item,"",1,1,1,1
+access_budget_item_line,Access Budget Item Line,model_budget_item_line,"",1,1,1,1
+access_budget_template,Access Budget Template,model_budget_template,"",1,1,1,1
+access_template_detail,Access Template Detail,model_template_detail,"",1,1,1,1
+access_memo_over_budget_wizard,Access Memo Over Budget Wizard,model_memo_over_budget,,1,1,1,1
+access_memo_over_budget_line,Access Memo Over Budget Line,model_memo_over_budget_line,,1,1,1,1

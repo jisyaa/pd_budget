@@ -1,0 +1,64 @@
+<odoo>
+    <!-- Budget list -->
+    <record id="view_budget_list" model="ir.ui.view">
+        <field name="name">budget.template.list</field>
+        <field name="model">budget.template</field>
+        <field name="arch" type="xml">
+            <list string="Budget Template">
+                <field name="name"/>
+                <field name="type"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Budget Form -->
+    <record id="view_budget_template_form" model="ir.ui.view">
+        <field name="name">budget.template.form</field>
+        <field name="model">budget.template</field>
+        <field name="arch" type="xml">
+            <form string="Budget Template">
+                <sheet>
+                    <group>
+                        <field name="name"/>
+                        <field name="type"/>
+                    </group>
+
+                    <notebook>
+                        <page string="Details">
+                            <field name="detail_ids" mode="list,form" context="{'default_template_id': id}">
+                                <list string="Details"  child_name="child_ids" parent_name="parent_id" decoration-info="is_parent">
+                                    <field name="type"/>
+                                    <field name="name"/>
+                                    <field name="check_detail"/>
+                                </list>
+                                <form string="Detail">
+                                    <sheet>
+                                        <group>
+                                            <group>
+                                                <field name="type"/>
+                                                <field name="name" string="Description"/>
+                                            </group>
+                                            <group>
+                                                <field name="parent_id"/>
+                                                <field name="check_detail"/>
+                                            </group>
+                                        </group>
+                                    </sheet>
+                                </form>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record model="ir.actions.act_window" id="template_action">
+        <field name="name">Budget Template</field>
+        <field name="res_model">budget.template</field>
+        <field name="view_mode">list,form</field>
+    </record>
+
+    <menuitem id="menu_budget_template" name="Budget Template" parent="menu_config" sequence="10" action="template_action"/>
+
+</odoo>

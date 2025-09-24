@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<odoo>
+    <menuitem id="menu_budget_root" name="Budgeting" sequence="10"/>
+    <menuitem id="menu_budget_plan" name="Budget Plan"  parent="menu_budget_root" sequence="10"/>
+    <menuitem id="menu_config" name="Configuration"  parent="menu_budget_root" sequence="20"/>
+</odoo>
