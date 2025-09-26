@@ -34,6 +34,11 @@ class MemoOverBudgetLine(models.Model):
     _name = 'memo.over.budget.line'
     _description = 'Memo Over Budget Line'
 
+    purchase_line_id = fields.Many2one(
+        'purchase.order.line',
+        string='Purchase Line',
+        ondelete='cascade'
+    )
     memo_id = fields.Many2one('memo.over.budget', string='Memo', ondelete='cascade')
     description = fields.Char(string="Deskripsi")
     product_id = fields.Many2one('product.product', string='Product', readonly=True)

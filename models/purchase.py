@@ -40,6 +40,50 @@ class PurchaseOrderLine(models.Model):
                         f"tidak tersedia pada Budget Item '{line.budget_item_id.name}'."
                     )
 
+    def write(self, vals):
+        res = super(PurchaseOrderLine, self).write(vals)
+
+        # Setelah tulis, update memo kalau ada
+        for line in self:
+            memo_line = self.env['memo.over.budget.line'].search([
+                ('purchase_line_id', '=', line.id)
+            ], limit=1)
+
+            if memo_line:
+                # Update field memo sesuai perubahan
+                memo_line.request_qty = line.product_qty
+                memo_line.request_price = line.price_unit
+                memo_line.request_amount = line.price_subtotal
+
+                # Update posisi_over juga:
+                budget_lines = line.budget_item_id.line_ids.filtered(
+                    lambda l: l.product_id == line.product_id
+                )
+                budget_qty = sum(budget_lines.mapped('qty_remain')) if budget_lines else 0.0
+                budget_price = max(budget_lines.mapped('unit_price')) if budget_lines else 0.0
+
+                if line.product_qty > budget_qty and line.price_unit > budget_price:
+                    posisi_over = 'both'
+                elif line.product_qty > budget_qty:
+                    posisi_over = 'amount'
+                elif line.price_unit > budget_price:
+                    posisi_over = 'price'
+                else:
+                    posisi_over = False
+
+                memo_line.posisi_over = posisi_over
+
+        return res
+
+    def unlink(self):
+        for line in self:
+            memo_line = self.env['memo.over.budget.line'].search([
+                ('purchase_line_id', '=', line.id)
+            ])
+            memo_line.unlink()
+        return super(PurchaseOrderLine, self).unlink()
+
+
 class PurchaseOrder(models.Model):
     _inherit = 'purchase.order'
 
@@ -93,6 +137,7 @@ class PurchaseOrder(models.Model):
                     'request_amount': pol.price_subtotal,
                     'budget_amount': budget_amount,
                     'posisi_over': posisi_over,
+                    'purchase_line_id': pol.id,
                 })
 
         self.memo_over_budget_id = memo.id
@@ -107,42 +152,50 @@ class PurchaseOrder(models.Model):
         }
 
     def button_confirm(self):
-        """Cek Memo Over Budget + Update qty_plan sesuai qty PO jika over."""
         for order in self:
-            # 1. Validasi memo over budget terlebih dahulu
+            # 1. Validasi memo
             if order.has_over_budget and not order.memo_over_budget_done:
                 raise ValidationError(
                     "Purchase Order ini Over Budget. Buat & simpan Memo Over Budget terlebih dahulu."
                 )
 
-        # 2. Kalau lolos validasi, confirm PO dulu
         res = super(PurchaseOrder, self).button_confirm()
 
-        # 3. Setelah PO dikonfirmasi → update qty_plan di budget item line
+        # 2. Update qty_plan & unit_price setelah confirm
         for order in self:
             for line in order.order_line:
                 if line.budget_item_id and line.product_id:
-                    # Cari budget.item.line yg sesuai dgn product_id
                     budget_lines = line.budget_item_id.line_ids.filtered(
                         lambda l: l.product_id == line.product_id
                     )
                     for bl in budget_lines:
-                        # Hitung total qty purchase yg sudah confirm untuk product ini
+                        # Hitung total qty purchase confirm
                         total_po_qty = self.env['purchase.order.line'].search([
                             ('budget_item_id', '=', line.budget_item_id.id),
                             ('product_id', '=', line.product_id.id),
-                            ('order_id.state', 'in', ['purchase', 'done'])  # hanya yg sudah confirm
+                            ('order_id.state', 'in', ['purchase', 'done'])
                         ]).mapped('product_qty')
                         total_po_qty = sum(total_po_qty)
 
-                        # Kalau total realisasi lebih besar daripada plan → update plan
+                        # Update qty_plan
                         if total_po_qty > bl.qty_plan:
                             bl.qty_plan = total_po_qty
+
+                        # Hitung max unit price dari PO confirm
+                        max_po_price = self.env['purchase.order.line'].search([
+                            ('budget_item_id', '=', line.budget_item_id.id),
+                            ('product_id', '=', line.product_id.id),
+                            ('order_id.state', 'in', ['purchase', 'done'])
+                        ]).mapped('price_unit')
+                        max_po_price = max(max_po_price) if max_po_price else 0.0
+
+                        # Update unit_price jika PO lebih besar
+                        if max_po_price > bl.unit_price:
+                            bl.unit_price = max_po_price
+
         return res
 
     def unlink(self):
-        """Kalau PO dihapus, kembalikan qty_plan ke nilai sebelumnya."""
-        # Cari semua budget item line yang terdampak
         for order in self:
             for line in order.order_line:
                 if line.budget_item_id and line.product_id:
@@ -150,18 +203,33 @@ class PurchaseOrder(models.Model):
                         lambda l: l.product_id == line.product_id
                     )
                     for bl in budget_lines:
-                        # Hitung total qty purchase lainnya yang masih ada
+                        # Hitung total qty purchase lainnya
                         total_po_qty = self.env['purchase.order.line'].search([
                             ('budget_item_id', '=', line.budget_item_id.id),
                             ('product_id', '=', line.product_id.id),
                             ('order_id.state', 'in', ['purchase', 'done']),
-                            ('order_id', 'not in', self.ids)  # kecuali PO ini
+                            ('order_id', 'not in', self.ids)
                         ]).mapped('product_qty')
                         total_po_qty = sum(total_po_qty)
 
-                        # Kembalikan qty_plan sesuai baseline atau total PO lain
+                        # Kembalikan qty_plan
                         if total_po_qty > bl.initial_qty_plan:
                             bl.qty_plan = total_po_qty
                         else:
                             bl.qty_plan = bl.initial_qty_plan
+
+                        # Hitung max unit price dari PO lain
+                        max_po_price = self.env['purchase.order.line'].search([
+                            ('budget_item_id', '=', line.budget_item_id.id),
+                            ('product_id', '=', line.product_id.id),
+                            ('order_id.state', 'in', ['purchase', 'done']),
+                            ('order_id', 'not in', self.ids)
+                        ]).mapped('price_unit')
+                        max_po_price = max(max_po_price) if max_po_price else 0.0
+
+                        # Kembalikan unit_price
+                        if max_po_price > bl.initial_unit_price:
+                            bl.unit_price = max_po_price
+                        else:
+                            bl.unit_price = bl.initial_unit_price
         return super(PurchaseOrder, self).unlink()

@@ -275,6 +275,7 @@ class BudgetItemLine(models.Model):
     qty_plan = fields.Float(string="Qty Plan")
     initial_qty_plan = fields.Float(string="Initial Qty Plan")
     unit_price = fields.Float(string="Unit Price", store=True)
+    initial_unit_price = fields.Float('Initial Unit Price', readonly=True)
     qty_used = fields.Float(string="Qty Used", compute="_compute_qty_used", store=True)
     qty_remain = fields.Float(string="Qty Remain", compute="_compute_qty_remain", store=True)
     subtotal = fields.Float(string="Subtotal", compute="_compute_subtotal", store=True)
@@ -285,6 +286,8 @@ class BudgetItemLine(models.Model):
         # Saat create, isi initial_qty_plan = qty_plan
         if 'qty_plan' in vals and 'initial_qty_plan' not in vals:
             vals['initial_qty_plan'] = vals['qty_plan']
+        if 'unit_price' in vals and not vals.get('initial_unit_price'):
+            vals['initial_unit_price'] = vals['unit_price']
         return super().create(vals)
 
     @api.depends('product_id', 'item_id.purchase_line_ids.order_id.state', 'item_id.purchase_line_ids.product_qty')
