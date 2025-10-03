@@ -43,19 +43,19 @@ class PurchaseOrderLine(models.Model):
     def write(self, vals):
         res = super(PurchaseOrderLine, self).write(vals)
 
-        # Setelah tulis, update memo kalau ada
+        self.env.flush_all()
+
         for line in self:
+            # === Update Memo Line ===
             memo_line = self.env['memo.over.budget.line'].search([
                 ('purchase_line_id', '=', line.id)
             ], limit=1)
 
             if memo_line:
-                # Update field memo sesuai perubahan
                 memo_line.request_qty = line.product_qty
                 memo_line.request_price = line.price_unit
                 memo_line.request_amount = line.price_subtotal
 
-                # Update posisi_over juga:
                 budget_lines = line.budget_item_id.line_ids.filtered(
                     lambda l: l.product_id == line.product_id
                 )
@@ -72,6 +72,36 @@ class PurchaseOrderLine(models.Model):
                     posisi_over = False
 
                 memo_line.posisi_over = posisi_over
+
+            # === Update Budget Line ===
+            if line.budget_item_id and line.product_id:
+                budget_lines = line.budget_item_id.line_ids.filtered(
+                    lambda l: l.product_id == line.product_id
+                )
+                for bl in budget_lines:
+                    total_po_qty = self.env['purchase.order.line'].sudo().search([
+                        ('budget_item_id', '=', line.budget_item_id.id),
+                        ('product_id', '=', line.product_id.id),
+                        ('order_id.state', 'in', ['purchase', 'done'])
+                    ]).mapped('product_qty')
+                    total_po_qty = sum(total_po_qty)
+
+                    max_po_price = self.env['purchase.order.line'].sudo().search([
+                        ('budget_item_id', '=', line.budget_item_id.id),
+                        ('product_id', '=', line.product_id.id),
+                        ('order_id.state', 'in', ['purchase', 'done'])
+                    ]).mapped('price_unit')
+                    max_po_price = max(max_po_price) if max_po_price else bl.initial_unit_price
+
+                    if max_po_price > bl.unit_price:
+                        bl.unit_price = max_po_price
+                    else:
+                        bl.unit_price = bl.initial_unit_price
+
+                    if total_po_qty > bl.qty_plan:
+                        bl.qty_plan = total_po_qty
+                    else:
+                        bl.qty_plan = max(total_po_qty, bl.initial_qty_plan)
 
         return res
 
