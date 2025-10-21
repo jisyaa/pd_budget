@@ -57,7 +57,7 @@
                             string="Confirm Memo"
                             type="object"
                             class="btn-primary"
-                            invisible="memo_over_budget_done==True"/>
+                            invisible="need_confirm_memo==False"/>
                     <button string="Cancel" special="cancel"/>
                 </footer>
             </form>

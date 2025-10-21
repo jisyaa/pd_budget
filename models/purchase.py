@@ -103,6 +103,10 @@ class PurchaseOrderLine(models.Model):
                     else:
                         bl.qty_plan = max(total_po_qty, bl.initial_qty_plan)
 
+            if 'product_qty' in vals or 'price_unit' in vals:
+                if line.order_id.memo_over_budget_done:
+                    line.order_id.memo_over_budget_done = False
+
         return res
 
     def unlink(self):
@@ -120,11 +124,26 @@ class PurchaseOrder(models.Model):
     has_over_budget = fields.Boolean(string="Has Over Budget", compute="_compute_has_over_budget", store=True)
     memo_over_budget_done = fields.Boolean(string="Memo Over Budget Done", default=False)
     memo_over_budget_id = fields.Many2one('memo.over.budget', string="Budget Revision", readonly=True)
+    need_confirm_memo = fields.Boolean(string="Need Confirm Memo", compute="_compute_need_confirm_memo", store=True)
 
     @api.depends('order_line.over_budget')
     def _compute_has_over_budget(self):
         for order in self:
             order.has_over_budget = any(line.over_budget for line in order.order_line)
+
+    @api.depends('order_line.price_unit', 'order_line.product_qty')
+    def _compute_need_confirm_memo(self):
+        for order in self:
+            need = False
+            for line in order.order_line:
+                if line.budget_item_id:
+                    budget_lines = line.budget_item_id.line_ids.filtered(
+                        lambda l: l.product_id == line.product_id
+                    )
+                    for bl in budget_lines:
+                        if line.product_qty > bl.qty_plan or line.price_unit > bl.unit_price:
+                            need = True
+            order.need_confirm_memo = need and not order.memo_over_budget_done
 
     def action_memo_over_budget(self):
         self.ensure_one()

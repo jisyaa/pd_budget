@@ -10,9 +10,15 @@ class MemoOverBudget(models.Model):
         'purchase.order', string='Reference', required=True, ondelete='cascade')
     date = fields.Date(string="Date", default=fields.Date.today)
     reason = fields.Text(string="Reason")
-    memo_over_budget_done = fields.Boolean(
-        string="Memo Over Budget Done",
-        related='purchase_order_id.memo_over_budget_done',
+    # memo_over_budget_done = fields.Boolean(
+    #     string="Memo Over Budget Done",
+    #     related='purchase_order_id.memo_over_budget_done',
+    #     store=False,
+    #     readonly=True,
+    # )
+    need_confirm_memo = fields.Boolean(
+        string="Memo Over Budget",
+        related='purchase_order_id.need_confirm_memo',
         store=False,
         readonly=True,
     )
@@ -28,7 +34,24 @@ class MemoOverBudget(models.Model):
     def action_confirm_memo(self):
         for memo in self:
             memo.purchase_order_id.memo_over_budget_done = True
+
+            # Update budget setelah memo dikonfirmasi
+            for line in memo.line_ids:
+                if line.budget_item_id and line.product_id:
+                    budget_lines = line.budget_item_id.line_ids.filtered(
+                        lambda l: l.product_id == line.product_id
+                    )
+                    for bl in budget_lines:
+                        # Update qty_plan sesuai request qty
+                        if line.request_qty > bl.qty_plan:
+                            bl.qty_plan = line.request_qty
+
+                        # Update unit_price sesuai request price
+                        if line.request_price > bl.unit_price:
+                            bl.unit_price = line.request_price
+
         return {'type': 'ir.actions.act_window_close'}
+
 
 class MemoOverBudgetLine(models.Model):
     _name = 'memo.over.budget.line'
