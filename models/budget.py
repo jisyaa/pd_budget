@@ -16,7 +16,6 @@ class Budget(models.Model):
     item_ids = fields.One2many('budget.item', 'budget_id', string="Item List")
 
     def _generate_items_from_template(self):
-        """Generate parent-child items from template_id."""
         for budget in self:
             if not budget.template_id:
                 continue
@@ -69,14 +68,12 @@ class Budget(models.Model):
 
     @api.onchange('template_id')
     def _onchange_template_id(self):
-        """Preview item list dari template tanpa create ke DB."""
         if self.template_id:
-            # Buat record virtual (new) agar muncul di form view
             preview_items = self.env['budget.item']
             for detail in self.template_id.detail_ids:
                 preview_items += self.env['budget.item'].new({
                     'budget_id': self.id or False,
-                    'parent_id': False,  # biarkan kosong → hanya preview
+                    'parent_id': False,
                     'name': detail.name,
                     'type': detail.type,
                     'check_detail': detail.check_detail,
@@ -131,40 +128,10 @@ class BudgetItem(models.Model):
         string="Actual Detail"
     )
 
-    @api.depends('purchase_line_ids')
-    def _compute_memo_over_budget_ids(self):
-        """Cari memo dari purchase order lines yang mengacu ke budget item ini."""
-        for item in self:
-            # Ambil semua purchase order yang mengacu ke budget item ini
-            purchase_orders = item.purchase_line_ids.mapped('order_id')
-
-            # Ambil semua memo over budget dari purchase orders tsb
-            memos = purchase_orders.mapped('memo_over_budget_id')
-
-            # Tambahkan juga memo yang lewat memo.over.budget.line langsung
-            memo_lines = self.env['memo.over.budget.line'].search([
-                ('budget_item_id', '=', item.id)
-            ])
-            memos |= memo_lines.mapped('memo_id')
-
-            item.memo_over_budget_ids = memos
-
     @api.depends('code', 'name')
     def _compute_display_name(self):
         for rec in self:
             rec.display_name = f"{rec.code} - {rec.name}" if rec.code else rec.name
-
-    def _compute_request_purchase_ids(self):
-        for rec in self:
-            rec.request_purchase_ids = rec.purchase_line_ids.filtered(
-                lambda l: l.order_id.state in ['draft', 'sent', 'to approve', 'purchase']
-            )
-
-    def _compute_actual_purchase_ids(self):
-        for rec in self:
-            rec.actual_purchase_ids = rec.purchase_line_ids.filtered(
-                lambda l: any(inv.payment_state == 'paid' for inv in l.order_id.invoice_ids)
-            )
 
     @api.depends('parent_id')
     def _compute_is_parent(self):
@@ -214,17 +181,6 @@ class BudgetItem(models.Model):
 
         return super().create(vals)
 
-    @api.depends('child_ids.request', 'purchase_line_ids.price_subtotal', 'purchase_line_ids.order_id.state')
-    def _compute_request(self):
-        for rec in self:
-            if rec.child_ids:
-                rec.request = sum(child.request for child in rec.child_ids)
-            else:
-                purchase_lines = rec.purchase_line_ids.filtered(
-                    lambda l: l.order_id.state in ['purchase', 'done']
-                )
-                rec.request = sum(purchase_lines.mapped('price_subtotal'))
-
     @api.depends('child_ids.budget_plan', 'line_ids.subtotal')
     def _compute_budget_plan(self):
         for rec in self:
@@ -241,28 +197,63 @@ class BudgetItem(models.Model):
             else:
                 rec.remaining = rec.budget_plan - rec.request
 
+    @api.depends('budget_plan', 'actual', 'child_ids.over_budget')
+    def _compute_over_budget(self):
+        for rec in self:
+            if rec.child_ids:
+                rec.over_budget = sum(child.over_budget for child in rec.child_ids)
+            else:
+                rec.over_budget = max(0, rec.actual - rec.budget_plan)
+
+    #berhubungan dengan purchase
+    def _compute_request_purchase_ids(self):
+        for rec in self:
+            rec.request_purchase_ids = rec.purchase_line_ids.filtered(
+                lambda l: l.order_id.state in ['draft', 'sent', 'to approve', 'purchase']
+            )
+
+    def _compute_actual_purchase_ids(self):
+        for rec in self:
+            rec.actual_purchase_ids = rec.purchase_line_ids.filtered(
+                lambda l: any(inv.payment_state == 'paid' for inv in l.order_id.invoice_ids)
+            )
+
+    @api.depends('child_ids.request', 'purchase_line_ids.price_subtotal', 'purchase_line_ids.order_id.state')
+    def _compute_request(self):
+        for rec in self:
+            if rec.child_ids:
+                rec.request = sum(child.request for child in rec.child_ids)
+            else:
+                purchase_lines = rec.purchase_line_ids.filtered(
+                    lambda l: l.order_id.state in ['purchase', 'done']
+                )
+                rec.request = sum(purchase_lines.mapped('price_subtotal'))
+
     @api.depends('child_ids.actual', 'purchase_line_ids.order_id.invoice_ids.payment_state')
     def _compute_actual(self):
         for rec in self:
             if rec.child_ids:
-                # Parent → total actual dari semua child
                 rec.actual = sum(child.actual for child in rec.child_ids)
             else:
-                # Child → actual dari purchase line yang sudah paid
                 paid_purchase_lines = rec.purchase_line_ids.filtered(
                     lambda l: any(inv.payment_state == 'paid' for inv in l.order_id.invoice_ids)
                 )
                 rec.actual = sum(paid_purchase_lines.mapped('price_subtotal'))
 
-    @api.depends('budget_plan', 'actual', 'child_ids.over_budget')
-    def _compute_over_budget(self):
-        for rec in self:
-            if rec.child_ids:
-                # Parent → total over_budget dari child
-                rec.over_budget = sum(child.over_budget for child in rec.child_ids)
-            else:
-                # Child → actual dikurangi budget_plan
-                rec.over_budget = max(0, rec.actual - rec.budget_plan)
+    #berhubungan dengan memo
+    @api.depends('purchase_line_ids')
+    def _compute_memo_over_budget_ids(self):
+        for item in self:
+            purchase_orders = item.purchase_line_ids.mapped('order_id')
+
+            memos = purchase_orders.mapped('memo_over_budget_id')
+
+            memo_lines = self.env['memo.over.budget.line'].search([
+                ('budget_item_id', '=', item.id)
+            ])
+            memos |= memo_lines.mapped('memo_id')
+
+            item.memo_over_budget_ids = memos
 
 class BudgetItemLine(models.Model):
     _name = 'budget.item.line'
@@ -283,23 +274,11 @@ class BudgetItemLine(models.Model):
 
     @api.model
     def create(self, vals):
-        # Saat create, isi initial_qty_plan = qty_plan
         if 'qty_plan' in vals and 'initial_qty_plan' not in vals:
             vals['initial_qty_plan'] = vals['qty_plan']
         if 'unit_price' in vals and not vals.get('initial_unit_price'):
             vals['initial_unit_price'] = vals['unit_price']
         return super().create(vals)
-
-    @api.depends('product_id', 'item_id.purchase_line_ids.order_id.state', 'item_id.purchase_line_ids.product_qty')
-    def _compute_qty_used(self):
-        for rec in self:
-            qty = 0.0
-            if rec.product_id and rec.item_id:
-                purchase_lines = rec.item_id.purchase_line_ids.filtered(
-                    lambda l: l.product_id.id == rec.product_id.id and l.order_id.state in ['purchase', 'done']
-                )
-                qty = sum(purchase_lines.mapped('product_qty'))
-            rec.qty_used = qty
 
     @api.depends('qty_plan', 'qty_used')
     def _compute_qty_remain(self):
@@ -323,7 +302,6 @@ class BudgetItemLine(models.Model):
                 ])
 
                 if vendors:
-                    # cari vendor dengan harga tertinggi
                     vendor = max(vendors, key=lambda v: v.price)
                     price = vendor.price
 
@@ -334,3 +312,15 @@ class BudgetItemLine(models.Model):
                     )
                 else:
                     rec.unit_price = rec.product_id.standard_price
+
+    #berhubungan dengan purchase
+    @api.depends('product_id', 'item_id.purchase_line_ids.order_id.state', 'item_id.purchase_line_ids.product_qty')
+    def _compute_qty_used(self):
+        for rec in self:
+            qty = 0.0
+            if rec.product_id and rec.item_id:
+                purchase_lines = rec.item_id.purchase_line_ids.filtered(
+                    lambda l: l.product_id.id == rec.product_id.id and l.order_id.state in ['purchase', 'done']
+                )
+                qty = sum(purchase_lines.mapped('product_qty'))
+            rec.qty_used = qty

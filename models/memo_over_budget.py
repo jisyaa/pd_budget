@@ -10,12 +10,6 @@ class MemoOverBudget(models.Model):
         'purchase.order', string='Reference', required=True, ondelete='cascade')
     date = fields.Date(string="Date", default=fields.Date.today)
     reason = fields.Text(string="Reason")
-    # memo_over_budget_done = fields.Boolean(
-    #     string="Memo Over Budget Done",
-    #     related='purchase_order_id.memo_over_budget_done',
-    #     store=False,
-    #     readonly=True,
-    # )
     need_confirm_memo = fields.Boolean(
         string="Memo Over Budget",
         related='purchase_order_id.need_confirm_memo',
@@ -35,18 +29,15 @@ class MemoOverBudget(models.Model):
         for memo in self:
             memo.purchase_order_id.memo_over_budget_done = True
 
-            # Update budget setelah memo dikonfirmasi
             for line in memo.line_ids:
                 if line.budget_item_id and line.product_id:
                     budget_lines = line.budget_item_id.line_ids.filtered(
                         lambda l: l.product_id == line.product_id
                     )
                     for bl in budget_lines:
-                        # Update qty_plan sesuai request qty
                         if line.request_qty > bl.qty_plan:
                             bl.qty_plan = line.request_qty
 
-                        # Update unit_price sesuai request price
                         if line.request_price > bl.unit_price:
                             bl.unit_price = line.request_price
 
@@ -73,11 +64,6 @@ class MemoOverBudgetLine(models.Model):
     request_amount = fields.Float(string='Request Amount', readonly=True)
     budget_amount = fields.Float(string='Budget Amount', readonly=True)
     over_amount = fields.Float(string='Over', compute='_compute_over_amount', store=True)
-    # posisi_over = fields.Selection([
-    #     ('amount', 'Over Quantity'),
-    #     ('price', 'Over Price'),
-    #     ('both', 'Over Quantity & Price')
-    # ], string='Posisi Over', readonly=True)
     posisi_over = fields.Selection([
        ('amount', 'Purchase Order'),
        ('price', 'Purchase Order'),
